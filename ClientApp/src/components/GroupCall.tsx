@@ -1,6 +1,6 @@
 // © Microsoft Corporation. All rights reserved.
 import React, { useState, useEffect } from 'react';
-import { Label, Overlay, Stack } from '@fluentui/react';
+import { Label, MessageBar, Overlay, Stack } from '@fluentui/react';
 import Header from '../containers/Header';
 import MediaGallery from '../containers/MediaGallery';
 import MediaFullScreen from './MediaFullScreen';
@@ -13,7 +13,8 @@ import {
   hiddenContainerClassName,
   activeContainerClassName,
   loadingStyle,
-  overlayStyles
+  overlayStyles,
+  messageBarStyles
 } from './styles/GroupCall.styles';
 import {
   Call,
@@ -22,7 +23,9 @@ import {
   VideoDeviceInfo,
   RemoteParticipant,
   CallAgent,
-  DeviceManager
+  DeviceManager,
+  TeamsMeetingLinkLocator,
+  GroupCallLocator
 } from '@azure/communication-calling';
 import { ParticipantStream } from 'core/reducers/index.js';
 
@@ -31,9 +34,9 @@ export interface GroupCallProps {
   groupId: string;
   call: Call;
   callAgent: CallAgent;
+  deviceManager: DeviceManager;
   mic: boolean;
   remoteParticipants: RemoteParticipant[];
-  streams: ParticipantStream[];
   callState: string;
   localVideo: boolean;
   localVideoStream: LocalVideoStream;
@@ -44,36 +47,49 @@ export interface GroupCallProps {
   videoDeviceList: VideoDeviceInfo[];
   screenWidth: number;
   shareScreen: boolean;
+  locator: GroupCallLocator | TeamsMeetingLinkLocator;
+  isBeingRecorded: boolean;
+  isBeingTranscribed: boolean;
   setAudioDeviceInfo(deviceInfo: AudioDeviceInfo): void;
   setVideoDeviceInfo(deviceInfo: VideoDeviceInfo): void;
   setLocalVideoStream(stream: LocalVideoStream | undefined): void;
   mute(): void;
-  isGroup(): void;
-  joinGroup(): void;
+  join(locator: GroupCallLocator | TeamsMeetingLinkLocator): void;
   endCallHandler(): void;
-  attempts: number;
-  setAttempts(attempts: number): void;
-  deviceManager: DeviceManager;
 }
 
 export default (props: GroupCallProps): JSX.Element => {
   const [selectedPane, setSelectedPane] = useState(CommandPanelTypes.None);
+  const [isCallBeingRecorded, setIsCallBeingRecorded] = useState<Boolean | undefined>(undefined);
+  const [recordedBannerViewable, setRecordedBannerViewable] = useState(false);
+  const [isCallBeingTranscribed, setIsCallBeingTranscribed] = useState<Boolean | undefined>(undefined);
+  const [transcribedBannerViewable, setTranscribedBannerViewable] = useState(false);
   const activeScreenShare = props.screenShareStreams && props.screenShareStreams.length === 1;
 
-  const { callAgent, call, groupId, joinGroup, attempts } = props;
+  const { callAgent, call, join, locator, isBeingRecorded, isBeingTranscribed } = props;
 
   useEffect(() => {
-    if (attempts > 3) {
-      props.endCallHandler();
-      // after we switch the screen on the next tick we want to 
-      // set the attempts back to 0
-      setTimeout(()=> props.setAttempts(0), 0)
-    }
     if (callAgent && !call) {
-      joinGroup();
-      document.title = `${groupId} group call sample`;
+      join(locator);
     }
-  }, [callAgent, call, groupId, joinGroup]);
+  }, [callAgent, call, join, locator]);
+
+  useEffect(() => {
+    if (isCallBeingRecorded !== isBeingRecorded) {
+      if (isCallBeingRecorded === undefined && isBeingRecorded === false) {
+        return;
+      }
+      setRecordedBannerViewable(true);
+      setIsCallBeingRecorded(isBeingRecorded);
+    }
+    if (isCallBeingTranscribed !== isBeingTranscribed) {
+      if (isCallBeingTranscribed === undefined && isBeingTranscribed === false) {
+        return;
+      }
+      setTranscribedBannerViewable(true);
+      setIsCallBeingTranscribed(isBeingTranscribed);
+    }
+   }, [isBeingRecorded, isBeingTranscribed]);
 
   return (
     <Stack horizontalAlign="center" verticalAlign="center" styles={containerStyles}>
@@ -81,13 +97,32 @@ export default (props: GroupCallProps): JSX.Element => {
         <Header
           selectedPane={selectedPane}
           setSelectedPane={setSelectedPane}
-          endCallHandler={props.endCallHandler}
+          endCallHandler={() => { 
+            props.endCallHandler(); 
+          }}
           screenWidth={props.screenWidth}
         />
       </Stack.Item>
+      { recordedBannerViewable && <Stack.Item styles={messageBarStyles}>
+      <MessageBar onDismiss={()=>{setRecordedBannerViewable(false)}}>
+        <Label>{ isBeingRecorded ? "Recording started." : "Recording is being saved" }</Label>
+        <div>{ isBeingRecorded ? "This call is being recorded for quality assurance." : "Recording has stopped" }</div>
+      </MessageBar>
+      </Stack.Item> }
+      { transcribedBannerViewable && <Stack.Item styles={messageBarStyles}>
+        <MessageBar onDismiss={()=>{setTranscribedBannerViewable(false)}}>
+          <Label>{ isBeingTranscribed ? "Recording and transcription have started." : "Recording and transcription has stopped."}</Label>
+          <div>{ isBeingTranscribed ? "By attending this meeting, you consent to being included. Privacy policy" : ""}</div>
+        </MessageBar>
+      </Stack.Item>  }
       <Stack.Item styles={containerStyles}>
-        {!props.shareScreen ? (
-          props.callState === Constants.CONNECTED && (
+        { props.shareScreen && (
+          <div className={loadingStyle}>
+          <Label>Your screen is being shared</Label>
+        </div>)
+        }
+        { props.callState === Constants.CONNECTED &&
+          (
             <Stack horizontal styles={containerStyles}>
               <Stack.Item grow styles={activeScreenShare ? activeContainerClassName : hiddenContainerClassName}>
                 {activeScreenShare && <MediaFullScreen activeScreenShareStream={props.screenShareStreams[0]} />}
@@ -107,11 +142,16 @@ export default (props: GroupCallProps): JSX.Element => {
               )}
             </Stack>
           )
-        ) : (
-          <div className={loadingStyle}>
-            <Label>Your screen is being shared</Label>
-          </div>
-        )}
+        }
+        {
+          props.callState === Constants.LOBBY && (
+            <Stack horizontal styles={containerStyles}>
+              <div className={loadingStyle} style={{width:'100%'}}>
+                <Label>Waiting to be admitted</Label>
+              </div>
+            </Stack>
+          )
+        }
       </Stack.Item>
     </Stack>
   );

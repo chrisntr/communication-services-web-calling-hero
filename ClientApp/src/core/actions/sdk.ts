@@ -27,6 +27,4 @@ export const setDisplayName = (displayName: string): SetDisplayNameAction => {
 
 export { SET_USERID, SET_DISPLAY_NAME };
 
-export type SdkTypes =
-  | SetUserIdAction
-  | SetDisplayNameAction;
+export type SdkTypes = SetUserIdAction | SetDisplayNameAction;

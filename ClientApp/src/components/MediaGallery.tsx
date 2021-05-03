@@ -4,12 +4,14 @@ import { RemoteParticipant, LocalVideoStream } from '@azure/communication-callin
 import { utils } from '../Utils/Utils';
 import LocalStreamMedia from './LocalStreamMedia';
 import RemoteStreamMedia from './RemoteStreamMedia';
+import { SelectionState } from 'core/RemoteStreamSelector';
 
 export interface MediaGalleryProps {
   userId: string;
   displayName: string;
   remoteParticipants: RemoteParticipant[];
   localVideoStream: LocalVideoStream;
+  dominantParticipants: SelectionState[];
 }
 
 export default (props: MediaGalleryProps): JSX.Element => {
@@ -25,12 +27,12 @@ export default (props: MediaGalleryProps): JSX.Element => {
     []
   );
   const getMediaGalleryTilesForParticipants = (participants: RemoteParticipant[], userId: string, displayName: string) => {
-    // create a RemoteStreamMedia component for every remote participant
     const remoteParticipantsMediaGalleryItems = participants.map((participant) => (
-      <div className={mediaGalleryStyle}>
+      <div key={`${utils.getId(participant.identifier)}-tile`} className={mediaGalleryStyle}>
         <RemoteStreamMedia
           key={utils.getId(participant.identifier)}
           stream={participant.videoStreams[0]}
+          isParticipantStreamSelected = {props.dominantParticipants.filter(p => p.participantId === utils.getId(participant.identifier)).length > 0}
           label={participant.displayName ?? utils.getId(participant.identifier)}
         />
       </div>
@@ -38,7 +40,7 @@ export default (props: MediaGalleryProps): JSX.Element => {
 
     // create a LocalStreamMedia component for the local participant
     const localParticipantMediaGalleryItem = (
-      <div key={userId} className={mediaGalleryStyle}>
+      <div key="localParticipantTile" className={mediaGalleryStyle}>
         <LocalStreamMedia label={displayName} stream={props.localVideoStream} />
       </div>
     );
@@ -55,7 +57,7 @@ export default (props: MediaGalleryProps): JSX.Element => {
   if (numberOfRows !== gridRow) setGridRow(numberOfRows);
 
   return (
-    <div
+    <div id="video-gallery"
       className={mediaGalleryGridStyle}
       style={{
         gridTemplateRows: `repeat(${gridRow}, minmax(0, 1fr))`,

@@ -1,7 +1,7 @@
 // © Microsoft Corporation. All rights reserved.
 
-import React, { useEffect, useState } from 'react';
-import { Label } from '@fluentui/react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Label, Spinner, SpinnerSize } from '@fluentui/react';
 import { RemoteVideoStream, Renderer, RendererView } from '@azure/communication-calling';
 import { videoHint, mediaContainer } from './styles/StreamMedia.styles';
 import { utils } from 'Utils/Utils';
@@ -11,62 +11,84 @@ import { Image, ImageFit } from '@fluentui/react';
 export interface RemoteStreamMediaProps {
   label: string;
   stream: RemoteVideoStream | undefined;
+  isParticipantStreamSelected: boolean;
 }
 
 export default (props: RemoteStreamMediaProps): JSX.Element => {
   let rendererView: RendererView;
 
-  let streamId = props.stream ? utils.getStreamId(props.label, props.stream) : `${props.label} - no stream`;
+  const streamId = props.stream ? utils.getStreamId(props.label, props.stream) : `${props.label} - no stream`;
 
-  const [available, setAvailable] = useState(false);
+  const [activeStreamBeingRendered, setActiveStreamBeingRendered] = useState(false);
+  const [showRenderLoading, setShowRenderLoading] = useState(false);
 
   const imageProps = {
     src: staticMediaSVG.toString(),
     imageFit: ImageFit.contain,
-    maximizeFrame: true
+    styles: {
+      root: {
+        width: '100%',
+        height: '100%',
+        display: activeStreamBeingRendered ? 'none' : 'block'
+      }
+    }
   };
 
-  const stream = props.stream;
+  const loadingStyle = {
+    height: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center'
+  };
 
-  const renderStream = async () => {
-    var container = document.getElementById(streamId);
+  const {label, stream, isParticipantStreamSelected} = props;
 
-    if (container && props.stream && props.stream.isAvailable) {
-      setAvailable(true);
+  const renderRemoteStream = useCallback(async () => {
+    const container = document.getElementById(streamId);
+    if (container && stream && stream.isAvailable && isParticipantStreamSelected) {
+      // if we are already rendering a stream we don't want to start rendering the same stream
+      if (activeStreamBeingRendered) {
+        return;
+      }
 
-      var renderer: Renderer = new Renderer(props.stream);
-      rendererView = await renderer.createView({ scalingMode: 'Crop' });
-
-      // we need to check if the stream is available still and if the id is what we expect
+      // set the flag that a stream is being rendered
+      setActiveStreamBeingRendered(true);
+      setShowRenderLoading(true);
+      const renderer: Renderer = new Renderer(stream);
+      // this can block a really long time if we fail to be subscribed to the call and it has to retry
+      const rendererView = await renderer.createView({ scalingMode: 'Crop' });
+      setShowRenderLoading(false);
       if (container && container.childElementCount === 0) {
         container.appendChild(rendererView.target);
       }
     } else {
-      setAvailable(false);
+      setActiveStreamBeingRendered(false);
 
       if (rendererView) {
         rendererView.dispose();
       }
     }
-  };
+  }, [stream, isParticipantStreamSelected, setShowRenderLoading, setActiveStreamBeingRendered]);
 
   useEffect(() => {
     if (!stream) {
       return;
     }
 
-    stream.on('availabilityChanged', renderStream);
+    stream.on('isAvailableChanged', renderRemoteStream);
 
     if (stream.isAvailable) {
-      renderStream();
+      renderRemoteStream();
     }
-  }, [stream, renderStream]);
+  }, [stream, isParticipantStreamSelected, renderRemoteStream]);
 
   return (
     <div className={mediaContainer}>
-      <div style={{ display: available ? 'block' : 'none' }} className={mediaContainer} id={streamId} />
-      <Image style={{ display: available ? 'none' : 'block' }} {...imageProps} />
-      <Label className={videoHint}>{props.label}</Label>
+      <div style={{display: activeStreamBeingRendered ? 'block' : 'none' }} className={mediaContainer} id={streamId}>
+      { showRenderLoading && <Spinner style={loadingStyle} label={`Rendering stream...`} size={SpinnerSize.xSmall} />}
+      </div>
+        <Image {...imageProps}/>
+        <Label className={videoHint}>{label}</Label>
     </div>
   );
 };

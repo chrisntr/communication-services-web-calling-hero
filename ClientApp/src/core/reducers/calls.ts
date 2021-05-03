@@ -1,25 +1,29 @@
 import { Call, CallEndReason, RemoteParticipant, CallAgent } from '@azure/communication-calling';
+import { SelectionState } from 'core/RemoteStreamSelector';
 import { Reducer } from 'redux';
 import {
   CALL_ADDED,
   CALL_REMOVED,
   SET_CALL_STATE,
-  SET_GROUP,
+  SET_DOMINANT_PARTICIPANTS,
   SET_PARTICIPANTS,
   CallTypes,
   SET_CALL_AGENT,
-  CALL_RETRIED
+  SET_RECORDING_ACTIVE,
+  SET_TRANSCRIBING_ACTIVE
 } from '../actions/calls';
 
 export interface CallsState {
   callAgent?: CallAgent;
-  group: string;
   call?: Call;
   callState: string;
   incomingCallEndReason: CallEndReason | undefined;
   groupCallEndReason: CallEndReason | undefined;
   remoteParticipants: RemoteParticipant[];
-  attempts: number
+  attempts: number;
+  isBeingRecorded: boolean | undefined;
+  isBeingTranscribed: boolean | undefined;
+  dominantParticipants: SelectionState[];
 }
 
 const initialState: CallsState = {
@@ -29,8 +33,10 @@ const initialState: CallsState = {
   incomingCallEndReason: undefined,
   groupCallEndReason: undefined,
   remoteParticipants: [],
-  group: '',
-  attempts: 0
+  attempts: 0,
+  isBeingRecorded: undefined,
+  isBeingTranscribed: undefined,
+  dominantParticipants: []
 };
 
 export const callsReducer: Reducer<CallsState, CallTypes> = (state = initialState, action: CallTypes): CallsState => {
@@ -49,12 +55,14 @@ export const callsReducer: Reducer<CallsState, CallTypes> = (state = initialStat
       };
     case SET_CALL_STATE:
       return { ...state, callState: action.callState };
+    case SET_DOMINANT_PARTICIPANTS:
+      return { ...state, dominantParticipants: action.dominantParticipants };
     case SET_PARTICIPANTS:
       return { ...state, remoteParticipants: action.remoteParticipants };
-    case SET_GROUP:
-      return { ...state, group: action.group };
-    case CALL_RETRIED:
-      return { ...state, attempts:action.attempts} 
+    case SET_RECORDING_ACTIVE:
+      return { ...state, isBeingRecorded: action.active }
+    case SET_TRANSCRIBING_ACTIVE:
+      return { ...state, isBeingTranscribed: action.active}
     default:
       return state;
   }

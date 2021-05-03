@@ -8,45 +8,20 @@ import thunk from 'redux-thunk';
 import EndCall from './components/EndCall';
 import HomeScreen from './components/HomeScreen';
 import ConfigurationScreen from './containers/Configuration';
-import { v1 as createGUID } from 'uuid';
 import { loadTheme, initializeIcons } from '@fluentui/react';
 import { utils } from './Utils/Utils';
+import { CallEndReason, GroupLocator, TeamsMeetingLinkLocator } from '@azure/communication-calling';
 
 const sdkVersion = require('../package.json').dependencies['@azure/communication-calling'];
 const lastUpdated = `Last Updated ${utils.getBuildTime()} with @azure/communication-calling:${sdkVersion}`;
 
-loadTheme({ 
-  palette: { 
-    themePrimary: '#ff5200', 
-    themeLighterAlt: '#fff8f5', 
-    themeLighter: '#ffe3d6', 
-    themeLight: '#ffcbb3', 
-    themeTertiary: '#ff9666', 
-    themeSecondary: '#ff661f', 
-    themeDarkAlt: '#e64900', 
-    themeDark: '#c23d00', 
-    themeDarker: '#8f2d00', 
-    neutralLighterAlt: '#f3f0ec', 
-    neutralLighter: '#efece8', 
-    neutralLight: '#e5e2df', 
-    neutralQuaternaryAlt: '#d6d2cf', 
-    neutralQuaternary: '#ccc9c6', 
-    neutralTertiaryAlt: '#c4c1be', 
-    neutralTertiary: '#a19f9d', 
-    neutralSecondary: '#605e5c', 
-    neutralPrimaryAlt: '#3b3a39', 
-    neutralPrimary: '#323130', 
-    neutralDark: '#201f1e', 
-    black: '#000000', 
-    white: '#f9f5f1', 
-  } 
-}); 
+loadTheme({});
 initializeIcons();
 
 const store = createStore(reducer, applyMiddleware(thunk));
 const App = () => {
   const [page, setPage] = useState('home');
-  const [groupId, setGroupId] = useState('');
+  const [callEndReason, setCallEndReason] = useState<CallEndReason | undefined>();
   const [screenWidth, setScreenWidth] = useState(0);
 
   useEffect(() => {
@@ -64,21 +39,43 @@ const App = () => {
     return urlParams.get('groupId');
   };
 
+  const getTeamsMeetingLinkFromUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('meeting');
+  }
+
+  const getMeetingLink = () => {
+    const encodedTeamsMeetingLink = getTeamsMeetingLinkFromUrl()
+    if (!encodedTeamsMeetingLink) {
+      return '';
+    }
+    return decodeURIComponent(encodedTeamsMeetingLink);
+  }
+
+  const getLocator = (): GroupLocator | TeamsMeetingLinkLocator => {
+    const meetingLink = getMeetingLink();
+    
+    if (meetingLink === '') {
+      return { groupId: getGroupId() }
+    } else {
+      return { meetingLink: meetingLink }
+    }
+  }
+
   const getGroupId = () => {
-    if (groupId) return groupId;
-    const uri_gid = getGroupIdFromUrl();
-    const gid = uri_gid == null || uri_gid === '' ? createGUID() : uri_gid;
-    console.log('The group id is ' + gid);
-    setGroupId(gid);
-    return gid;
+    const groupId = getGroupIdFromUrl();
+    return groupId ? groupId : ''
   };
 
   const getContent = () => {
     if (page === 'home') {
       return (
         <HomeScreen
-          startCallHandler={() => {
-            window.history.pushState({}, document.title, window.location.href + '?groupId=' + getGroupId());
+          startCallHandler={(groupId: string) => {
+            window.location.href = window.location.href + '?groupId=' + encodeURIComponent(groupId);
+          }}
+          joinTeamsMeeting={(meetingUrl: string) => {
+            window.location.href = window.location.href + '?meeting=' + encodeURIComponent(meetingUrl);
           }}
         />
       );
@@ -86,9 +83,8 @@ const App = () => {
       return (
         <ConfigurationScreen
           startCallHandler={() => setPage('call')}
-          unsupportedStateHandler={() => setPage('error')}
-          endCallHandler={() => setPage('endCall')}
-          groupId={getGroupId()}
+          unsupportedStateHandler={() => setPage('unsupported')}
+          callEndedHandler={(errorMsg: CallEndReason) => { setCallEndReason(errorMsg); setPage('error');} }
           screenWidth={screenWidth}
         />
       );
@@ -96,25 +92,23 @@ const App = () => {
       return (
         <GroupCall
           endCallHandler={() => setPage('endCall')}
-          groupId={getGroupId()}
+          locator={getLocator()}
           screenWidth={screenWidth}
         />
       );
     } else if (page === 'endCall') {
       return (
         <EndCall
-          message={store.getState().calls.attempts > 3 ? 'Unable to join the call' :
-            'You left the call'}
+          message={'You left the call'}
           rejoinHandler={() => {
-            setPage('call');
+            window.location.href = window.location.href;
           }}
           homeHandler={() => {
             window.location.href = window.location.href.split('?')[0];
           }}
         />
       );
-    } else {
-      // page === 'error'
+    } else if (page === 'unsupported') {
       window.document.title = 'Unsupported browser';
       return (
         <>
@@ -122,9 +116,25 @@ const App = () => {
           browsers and platforms supported by the web calling sdk
         </>
       );
+    } else if (page === 'error') {
+      window.document.title = 'Call Ended';
+      return (
+        <div>
+          <div>{`The call has ended with this error code (Code: ${callEndReason?.code} Subcode: ${callEndReason?.subCode})`}</div >
+
+          <div>
+          <a href="https://docs.microsoft.com/en-us/azure/communication-services/concepts/troubleshooting-info?tabs=csharp%2Cjavascript%2Cdotnet">Learn more</a>&nbsp;about
+          why this Azure Communication Services call has ended.</div>
+        </div>
+      );
+    } else {
+      return <></>
     }
   };
 
+  if (getMeetingLink() && page === 'home') {
+    setPage('configuration')
+  }
   if (getGroupIdFromUrl() && page === 'home') {
     setPage('configuration');
   }
@@ -135,7 +145,7 @@ const App = () => {
 window.setTimeout(() => {
   try {
     console.log(`Azure Communication Services sample group calling app: ${lastUpdated}`);
-  } catch (e) { }
+  } catch (e) {}
 }, 0);
 
 export default App;

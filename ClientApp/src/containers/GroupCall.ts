@@ -1,37 +1,39 @@
 import { connect } from 'react-redux';
 import GroupCall, { GroupCallProps } from '../components/GroupCall';
-import { joinGroup, setMicrophone } from '../core/sideEffects';
+import { join, setMicrophone } from '../core/sideEffects';
 import { setLocalVideoStream } from '../core/actions/streams';
 import { setVideoDeviceInfo, setAudioDeviceInfo } from '../core/actions/devices';
-import { AudioDeviceInfo, VideoDeviceInfo, LocalVideoStream } from '@azure/communication-calling';
+import { 
+  AudioDeviceInfo,
+  VideoDeviceInfo,
+  LocalVideoStream,
+  TeamsMeetingLinkLocator,
+  GroupCallLocator
+} from '@azure/communication-calling';
 import { State } from '../core/reducers';
-import { callRetried } from 'core/actions/calls';
 
 const mapStateToProps = (state: State, props: GroupCallProps) => ({
   userId: state.sdk.userId,
-  deviceManager: state.devices.deviceManager,
   callAgent: state.calls.callAgent,
-  group: state.calls.group,
+  deviceManager: state.devices.deviceManager,
   screenWidth: props.screenWidth,
   call: state.calls.call,
   shareScreen: state.controls.shareScreen,
   mic: state.controls.mic,
   groupCallEndReason: state.calls.groupCallEndReason,
-  isGroup: () => state.calls.call && !state.calls.call.isIncoming && !!state.calls.group,
-  joinGroup: () => {
+  join: async (locator: GroupCallLocator | TeamsMeetingLinkLocator) => {
     state.calls.callAgent &&
-      joinGroup(
+    
+      await join(
         state.calls.callAgent,
+        locator,
         {
-          groupId: state.calls.group
-        },
-        {
+          videoOptions: { localVideoStreams: state.streams.localVideoStream ? [state.streams.localVideoStream] : undefined },
           audioOptions: { muted: !state.controls.mic }
         }
       );
   },
   remoteParticipants: state.calls.remoteParticipants,
-  streams: state.streams.streams,
   callState: state.calls.callState,
   localVideo: state.controls.localVideo,
   localVideoStream: state.streams.localVideoStream,
@@ -42,19 +44,19 @@ const mapStateToProps = (state: State, props: GroupCallProps) => ({
   audioDeviceList: state.devices.audioDeviceList,
   cameraPermission: state.devices.cameraPermission,
   microphonePermission: state.devices.microphonePermission,
-  attempts: state.calls.attempts
+  isBeingRecorded: state.calls.isBeingRecorded,
+  isBeingTranscribed: state.calls.isBeingTranscribed
 });
 
 const mapDispatchToProps = (dispatch: any) => ({
   mute: () => dispatch(setMicrophone(false)),
-  setAudioDeviceInfo: (deviceInfo: AudioDeviceInfo) => { 
-    dispatch(setAudioDeviceInfo(deviceInfo))
+  setAudioDeviceInfo: (deviceInfo: AudioDeviceInfo) => {
+    dispatch(setAudioDeviceInfo(deviceInfo));
   },
   setVideoDeviceInfo: (deviceInfo: VideoDeviceInfo) => {
     dispatch(setVideoDeviceInfo(deviceInfo));
   },
-  setLocalVideoStream: (localVideoStream: LocalVideoStream) => dispatch(setLocalVideoStream(localVideoStream)),
-  setAttempts: (attempts: number) => dispatch(callRetried(attempts))
+  setLocalVideoStream: (localVideoStream: LocalVideoStream) => dispatch(setLocalVideoStream(localVideoStream))
 });
 
 const connector: any = connect(mapStateToProps, mapDispatchToProps);

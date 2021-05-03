@@ -3,7 +3,7 @@ import { SET_USERID, SdkTypes, SET_DISPLAY_NAME } from '../actions/sdk';
 
 export interface SdkState {
   userId?: string;
-  displayName: string
+  displayName: string;
 }
 
 const initialState: SdkState = {
@@ -15,7 +15,7 @@ export const sdkReducer: Reducer<SdkState, SdkTypes> = (state = initialState, ac
     case SET_USERID:
       return { ...state, userId: action.userId };
     case SET_DISPLAY_NAME:
-      return { ...state, displayName: action.displayName }
+      return { ...state, displayName: action.displayName };
     default:
       return state;
   }

@@ -1,20 +1,18 @@
 import { CallEndReason, Call, RemoteParticipant, CallAgent } from '@azure/communication-calling';
+import { SelectionState } from '../RemoteStreamSelector';
 
 const SET_CALL_AGENT = 'SET_CALL_AGENT';
-const SET_GROUP = 'SET_GROUP';
 const CALL_ADDED = 'CALL_ADDED';
 const CALL_REMOVED = 'CALL_REMOVED';
-const CALL_RETRIED = 'CALL_RETRIED';
 const SET_CALL_STATE = 'SET_CALL_STATE';
 const SET_PARTICIPANTS = 'SET_PARTICIPANTS';
+const SET_RECORDING_ACTIVE = 'SET_RECORDING_ACTIVE';
+const SET_TRANSCRIBING_ACTIVE = 'SET_TRANSCRIBING_ACTIVE';
+const SET_DOMINANT_PARTICIPANTS = 'SET_DOMINANT_PARTICIPANTS';
 
 interface SetCallAgentAction {
   type: typeof SET_CALL_AGENT;
   callAgent: CallAgent;
-}
-interface SetGroupAction {
-  type: typeof SET_GROUP;
-  group: any;
 }
 
 interface CallAddedAction {
@@ -29,11 +27,6 @@ interface CallRemovedAction {
   groupCallEndReason: CallEndReason | undefined;
 }
 
-interface CallRetriedAction {
-  type: typeof CALL_RETRIED;
-  attempts: number;
-}
-
 interface SetCallStateAction {
   type: typeof SET_CALL_STATE;
   callState: string;
@@ -44,17 +37,25 @@ interface SetParticipantsAction {
   remoteParticipants: RemoteParticipant[];
 }
 
+interface SetRecordingActiveAction {
+  type: typeof SET_RECORDING_ACTIVE;
+  active: boolean;
+}
+
+interface SetTranscribingActiveAction {
+  type: typeof SET_TRANSCRIBING_ACTIVE;
+  active: boolean;
+}
+
+interface SetDominantParticipantsAction {
+  type: typeof SET_DOMINANT_PARTICIPANTS;
+  dominantParticipants: SelectionState[];
+}
+
 export const setCallAgent = (callAgent: CallAgent): SetCallAgentAction => {
   return {
     type: SET_CALL_AGENT,
     callAgent
-  };
-};
-
-export const setGroup = (groupId: string): SetGroupAction => {
-  return {
-    type: SET_GROUP,
-    group: groupId
   };
 };
 
@@ -65,12 +66,12 @@ export const callAdded = (addedCall: Call): CallAddedAction => {
   };
 };
 
-export const callRemoved = (removedCall: Call, group: string): CallRemovedAction => {
+export const callRemoved = (removedCall: Call): CallRemovedAction => {
   return {
     type: CALL_REMOVED,
     call: undefined,
-    incomingCallEndReason: removedCall.isIncoming ? removedCall.callEndReason : undefined,
-    groupCallEndReason: !removedCall.isIncoming && !!group ? removedCall.callEndReason : undefined
+    incomingCallEndReason: removedCall.direction === 'Incoming' ? removedCall.callEndReason : undefined,
+    groupCallEndReason: removedCall.callEndReason
   };
 };
 
@@ -88,20 +89,45 @@ export const setParticipants = (participants: RemoteParticipant[]): SetParticipa
   };
 };
 
-export const callRetried = (attempts: number) : CallRetriedAction => {
-  return {
-    type: CALL_RETRIED,
-    attempts: attempts
-  }
-}
 
-export { SET_CALL_AGENT, SET_GROUP, CALL_ADDED, CALL_REMOVED, SET_CALL_STATE, SET_PARTICIPANTS, CALL_RETRIED };
+export const setRecordingActive = (isActive: boolean): SetRecordingActiveAction => {
+  return {
+    type: SET_RECORDING_ACTIVE,
+    active: isActive
+  };
+};
+
+export const setTranscribingActive = (isActive: boolean): SetTranscribingActiveAction => {
+  return {
+    type: SET_TRANSCRIBING_ACTIVE,
+    active: isActive
+  };
+};
+
+export const setDominantParticipants = (selected: SelectionState[]): SetDominantParticipantsAction => {
+  return {
+    type: SET_DOMINANT_PARTICIPANTS,
+    dominantParticipants: selected
+  };
+};
+
+export {
+  SET_CALL_AGENT,
+  CALL_ADDED,
+  CALL_REMOVED,
+  SET_CALL_STATE,
+  SET_PARTICIPANTS,
+  SET_RECORDING_ACTIVE,
+  SET_TRANSCRIBING_ACTIVE,
+  SET_DOMINANT_PARTICIPANTS,
+};
 
 export type CallTypes =
   | SetCallAgentAction
   | SetParticipantsAction
+  | SetDominantParticipantsAction
   | SetCallStateAction
-  | SetGroupAction
   | CallAddedAction
   | CallRemovedAction
-  | CallRetriedAction;
+  | SetRecordingActiveAction
+  | SetTranscribingActiveAction;
