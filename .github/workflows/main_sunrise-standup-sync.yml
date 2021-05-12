@@ -52,5 +52,5 @@ jobs:
       with:
         app-name: 'sunrise-standup-sync'
         slot-name: 'production'
-        publish-profile: ${{ secrets.AzureAppService_PublishProfile_1a1e6757f7354f0c94bbc34be882ae01 }}
+        publish-profile: ${{ secrets.AzureAppService_PublishProfile_06729a611b9d4a768d4c44aaabb49db7 }}
         package: .
